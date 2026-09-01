@@ -1,4 +1,4 @@
-import supabase from "../supabase.js";
+import db from "../firebase.js";
 
 export const crearCategoria = async (req, res) => {
   try {
@@ -11,35 +11,28 @@ export const crearCategoria = async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
-      .from("categorias")
-      .insert([
-        {
-          nombre_categoria,
-          descripcion_categoria
-        }
-      ])
-      .select();
+    // Datos de la categoría
+    const categoria = {
+      nombre_categoria,
+      descripcion_categoria: descripcion_categoria || ""
+    };
 
-    if (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        mensaje: "Error al crear la categoría",
-        error: error.message
-      });
-    }
+    // Crear documento dentro de la colección categorias
+    const documento = await db
+      .collection("categorias")
+      .add(categoria);
 
     res.status(201).json({
       mensaje: "Categoría creada correctamente",
-      categoria: data[0]
+      id: documento.id,
+      categoria: categoria
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Error al crear categoría:", error);
 
     res.status(500).json({
-      mensaje: "Error interno del servidor",
+      mensaje: "Error al crear la categoría",
       error: error.message
     });
   }
