@@ -8,12 +8,16 @@ const serviceAccount = {
 };
 
 // Evita inicializar varias veces
-if (!getApps().length) {
+if (!getApps().length && projectId && clientEmail && privateKey) {
   initializeApp({
-    credential: cert(serviceAccount),
+    credential: cert({
+      projectId,
+      clientEmail,
+      privateKey
+    })
   });
 }
 
 const db = getFirestore();
-
+  
 export default db;
