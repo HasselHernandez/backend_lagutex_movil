@@ -8,13 +8,9 @@ const serviceAccount = {
 };
 
 // Evita inicializar varias veces
-if (!getApps().length && projectId && clientEmail && privateKey) {
+if (!getApps().length) {
   initializeApp({
-    credential: cert({
-      projectId,
-      clientEmail,
-      privateKey
-    })
+    credential: cert(serviceAccount),
   });
 }
 
