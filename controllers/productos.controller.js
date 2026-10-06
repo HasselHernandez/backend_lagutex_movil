@@ -1,20 +1,23 @@
 import db from '../firebase.js';
 import supabase from '../supabase.js';
 import { randomUUID } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
+
+const serializarProducto = (doc) => {
+  const producto = doc.data();
+  delete producto.categoria;
+
+  return {
+    ...producto,
+    id: doc.id,
+    categoria_id: producto.categoria_id ?? null
+  };
+};
 
 export const obtenerProductos = async (req, res) => {
   try {
     const snapshot = await db.collection('productos').get();
-    const productos = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      const categoria = data.categoria ?? data.categoria_id ?? null;
-
-      return {
-        id: doc.id,
-        ...data,
-        categoria
-      };
-    });
+    const productos = snapshot.docs.map(serializarProducto);
 
     return res.status(200).json(productos);
   } catch (error) {
@@ -27,40 +30,30 @@ export const obtenerProductos = async (req, res) => {
 };
 
 
-  export const registrarProducto = async (req, res) => {
+export const registrarProducto = async (req, res) => {
   const { nombre, precio, stock } = req.body;
-  let categoria;
+  const categoriaId = typeof req.body.categoria_id === 'string'
+    ? req.body.categoria_id.trim()
+    : '';
 
-    try {
-    categoria = typeof req.body.categoria === 'string'
-      ? JSON.parse(req.body.categoria)
-      : req.body.categoria;
-  } catch {
-    return res.status(400).json({
-      mensaje: 'La categoria debe ser un objeto JSON valido'
-    });
-  }
-
-    const imageFile = req.files?.image?.[0] || req.files?.imagen?.[0];
-    
+  const imageFile = req.files?.image?.[0] || req.files?.imagen?.[0];
 
   if (
     !nombre ||
     precio === undefined ||
     stock === undefined ||
-    !categoria?.nombre ||
-    !categoria?.descripcion ||
+    !categoriaId ||
     !imageFile
   ) {
     return res.status(400).json({
-      mensaje: 'El nombre, precio, image, stock y categoria (nombre y descripcion) son obligatorios'
+      mensaje: 'El nombre, precio, image, stock y categoria_id son obligatorios'
     });
   }
 
-   const precioNumerico = Number(precio);
+  const precioNumerico = Number(precio);
   const stockNumerico = Number(stock);
 
-   if (!Number.isFinite(precioNumerico) || precioNumerico < 0 || !Number.isInteger(stockNumerico) || stockNumerico < 0) {
+  if (!Number.isFinite(precioNumerico) || precioNumerico < 0 || !Number.isInteger(stockNumerico) || stockNumerico < 0) {
     return res.status(400).json({
       mensaje: 'El precio debe ser un numero mayor o igual a 0 y el stock un entero mayor o igual a 0'
     });
@@ -81,7 +74,7 @@ export const obtenerProductos = async (req, res) => {
       });
     }
 
-      const extension = imageFile.originalname.includes('.')
+    const extension = imageFile.originalname.includes('.')
       ? imageFile.originalname.substring(imageFile.originalname.lastIndexOf('.')).toLowerCase()
       : '';
     const imagePath = `${randomUUID()}${extension}`;
@@ -92,27 +85,24 @@ export const obtenerProductos = async (req, res) => {
         upsert: false
       });
 
-        if (uploadError) {
+    if (uploadError) {
       console.error('Error al subir imagen a Supabase:', uploadError);
       return res.status(500).json({
         mensaje: `Error al guardar la imagen del producto: ${uploadError.message}`
       });
     }
-    
-      const { data: imageData } = supabase.storage.from(bucket).getPublicUrl(imagePath);
+
+    const { data: imageData } = supabase.storage.from(bucket).getPublicUrl(imagePath);
     const productoRef = db.collection('productos').doc();
     const nuevoProducto = {
       nombre: nombre.trim(),
       precio: precioNumerico,
       image: imageData.publicUrl,
       stock: stockNumerico,
-      categoria: {
-        nombre: categoria.nombre.trim(),
-        descripcion: categoria.descripcion.trim()
-      }
+      categoria_id: categoriaId
     };
 
-       await productoRef.set(nuevoProducto);
+    await productoRef.set(nuevoProducto);
 
     return res.status(201).json({
       mensaje: 'Producto registrado correctamente',
@@ -122,7 +112,7 @@ export const obtenerProductos = async (req, res) => {
       }
 
     });
-    
+
   } catch (error) {
     console.error('Error al registrar producto:', error);
     return res.status(500).json({
@@ -135,23 +125,15 @@ export const obtenerProductos = async (req, res) => {
 export const actualizarProducto = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, precio, stock } = req.body || {};
+    const { nombre, precio, stock, categoria_id: categoriaIdBody } = req.body || {};
+    const categoriaId = typeof categoriaIdBody === 'string'
+      ? categoriaIdBody.trim()
+      : '';
     const imageFile = req.files?.image?.[0] || req.files?.imagen?.[0];
-    let categoria;
 
-    try {
-      categoria = typeof req.body?.categoria === 'string'
-        ? JSON.parse(req.body.categoria)
-        : req.body?.categoria;
-    } catch {
+    if (!nombre || precio === undefined || stock === undefined || !categoriaId) {
       return res.status(400).json({
-        mensaje: 'La categoria debe ser un objeto JSON valido'
-      });
-    }
-
-    if (!nombre || precio === undefined || stock === undefined || !categoria?.nombre || !categoria?.descripcion) {
-      return res.status(400).json({
-        mensaje: 'El nombre, precio, stock y categoria (nombre y descripcion) son obligatorios.'
+        mensaje: 'El nombre, precio, stock y categoria_id son obligatorios.'
       });
     }
 
@@ -215,13 +197,13 @@ export const actualizarProducto = async (req, res) => {
       precio: precioNumerico,
       stock: stockNumerico,
       image: imageUrl,
-      categoria: {
-        nombre: categoria.nombre.trim(),
-        descripcion: categoria.descripcion.trim()
-      }
+      categoria_id: categoriaId
     };
 
-    await docRef.update(productoActualizado);
+    await docRef.update({
+      ...productoActualizado,
+      categoria: FieldValue.delete()
+    });
 
     return res.status(200).json({
       mensaje: 'Producto actualizado correctamente.',
@@ -298,6 +280,44 @@ export const eliminarProducto = async (req, res) => {
     console.error('Error al eliminar producto:', error);
     return res.status(500).json({
       mensaje: 'Error al eliminar el producto.',
+      error: error.message
+    });
+  }
+};
+
+export const buscarProductos = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (typeof q !== 'string' || q.trim() === '') {
+      return res.status(400).json({
+        mensaje: 'Debes enviar un término de búsqueda (parámetro q).'
+      });
+    }
+
+    const termino = q.trim().toLocaleLowerCase();
+    const snapshot = await db.collection('productos').get();
+
+    const productos = snapshot.docs
+      .map(serializarProducto)
+      .filter((producto) => {
+        const campos = [
+          producto.nombre,
+          producto.precio,
+          producto.stock,
+          producto.categoria_id
+        ];
+
+        return campos.some((campo) =>
+          String(campo ?? '').toLocaleLowerCase().includes(termino)
+        );
+      });
+
+    return res.status(200).json(productos);
+  } catch (error) {
+    console.error('Error al buscar productos:', error);
+    return res.status(500).json({
+      mensaje: 'Error al buscar los productos.',
       error: error.message
     });
   }

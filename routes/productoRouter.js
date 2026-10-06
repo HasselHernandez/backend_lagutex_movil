@@ -1,6 +1,12 @@
 import express from 'express';
 import multer from 'multer';
-import { obtenerProductos, registrarProducto, actualizarProducto, eliminarProducto } from '../controllers/productos.controller.js';
+import {
+  obtenerProductos,
+  registrarProducto,
+  actualizarProducto,
+  eliminarProducto,
+  buscarProductos
+} from '../controllers/productos.controller.js';
 
 const router = express.Router();
 const upload = multer({
@@ -9,6 +15,7 @@ const upload = multer({
 });
 
 router.get('/producto', obtenerProductos);
+router.get('/buscarproducto', buscarProductos);
 router.post(
   '/registrarproducto',
   upload.fields([
