@@ -13,6 +13,7 @@ app.use(express.json());
 app.use(infoRoutes);
 app.use(productoRouter);
 
+
 // 404
 app.use((req, res) => {
   res.status(404).json({ mensaje: "Ruta no registrada." });

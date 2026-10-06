@@ -42,11 +42,10 @@ export const registrarProducto = async (req, res) => {
     !nombre ||
     precio === undefined ||
     stock === undefined ||
-    !categoriaId ||
-    !imageFile
+    !categoriaId
   ) {
     return res.status(400).json({
-      mensaje: 'El nombre, precio, image, stock y categoria_id son obligatorios'
+      mensaje: 'El nombre, precio, stock y categoria_id son obligatorios'
     });
   }
 
@@ -67,37 +66,48 @@ export const registrarProducto = async (req, res) => {
       });
     }
 
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'productos';
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return res.status(500).json({
-        mensaje: 'Faltan las variables de configuración de Supabase'
-      });
+    let imageUrl = '';
+    if (imageFile) {
+      if (!imageFile.mimetype?.startsWith('image/')) {
+        return res.status(400).json({
+          mensaje: 'El archivo debe ser una imagen.'
+        });
+      }
+
+      if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        return res.status(500).json({
+          mensaje: 'Faltan las variables de configuración de Supabase'
+        });
+      }
+
+      const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'productos';
+      const extension = imageFile.originalname.includes('.')
+        ? imageFile.originalname.substring(imageFile.originalname.lastIndexOf('.')).toLowerCase()
+        : '';
+      const imagePath = `${randomUUID()}${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(imagePath, imageFile.buffer, {
+          contentType: imageFile.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Error al subir imagen a Supabase:', uploadError);
+        return res.status(500).json({
+          mensaje: `Error al guardar la imagen del producto: ${uploadError.message}`
+        });
+      }
+
+      const { data: imageData } = supabase.storage.from(bucket).getPublicUrl(imagePath);
+      imageUrl = imageData.publicUrl;
     }
 
-    const extension = imageFile.originalname.includes('.')
-      ? imageFile.originalname.substring(imageFile.originalname.lastIndexOf('.')).toLowerCase()
-      : '';
-    const imagePath = `${randomUUID()}${extension}`;
-    const { error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(imagePath, imageFile.buffer, {
-        contentType: imageFile.mimetype,
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Error al subir imagen a Supabase:', uploadError);
-      return res.status(500).json({
-        mensaje: `Error al guardar la imagen del producto: ${uploadError.message}`
-      });
-    }
-
-    const { data: imageData } = supabase.storage.from(bucket).getPublicUrl(imagePath);
     const productoRef = db.collection('productos').doc();
     const nuevoProducto = {
       nombre: nombre.trim(),
       precio: precioNumerico,
-      image: imageData.publicUrl,
+      image: imageUrl,
       stock: stockNumerico,
       categoria_id: categoriaId
     };
@@ -110,7 +120,6 @@ export const registrarProducto = async (req, res) => {
         id: productoRef.id,
         ...nuevoProducto
       }
-
     });
 
   } catch (error) {
