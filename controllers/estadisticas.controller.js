@@ -2,7 +2,8 @@ import db from '../firebase.js';
 
 const contarPorCampo = (documentos, campo, valorPorDefecto) => (
   documentos.reduce((conteo, doc) => {
-    const valor = doc.data()[campo];
+    const datos = typeof doc.data === 'function' ? doc.data() : doc;
+    const valor = datos[campo];
     const clave = typeof valor === 'string' && valor.trim()
       ? valor.trim()
       : valorPorDefecto;
