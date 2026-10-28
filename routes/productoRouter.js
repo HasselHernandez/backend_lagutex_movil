@@ -5,7 +5,8 @@ import {
   registrarProducto,
   actualizarProducto,
   eliminarProducto,
-  buscarProductos
+  buscarProductos,
+  exportarProductosCSV,
 } from '../controllers/productos.controller.js';
 
 const router = express.Router();
@@ -41,6 +42,8 @@ const recibirArchivosProducto = (req, res, next) => {
 
 router.get('/producto', obtenerProductos);
 router.get('/buscarproducto', buscarProductos);
+
+router.get('/producto/csv', exportarProductosCSV);
 router.post('/registrarproducto', recibirArchivosProducto, registrarProducto);
 
 router.put('/producto/:id', recibirArchivosProducto, actualizarProducto);
@@ -49,5 +52,7 @@ router.patch('/producto/:id', recibirArchivosProducto, actualizarProducto);
 
 router.delete('/producto/:id', eliminarProducto);
 router.delete('/eliminarproducto/:id', eliminarProducto);
+
+
 
 export default router;

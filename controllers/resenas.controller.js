@@ -268,3 +268,73 @@ export const buscarResenas = async (req, res) => {
     });
   }
 };
+
+export const exportarResenasCSV = async (req, res) => {
+  try {
+    const snapshot = await db.collection("resenas").get();
+
+    const resenas = snapshot.docs.map((doc) => ({
+      idDoc: doc.id,
+      ...doc.data(),
+    }));
+
+    // Función para escapar correctamente valores CSV
+    const escapar = (valor) => {
+      if (valor === null || valor === undefined) return "";
+      const str = String(valor);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Encabezados del CSV
+    const encabezados = [
+      "ID Documento",
+      "Calificación",
+      "Comentario",
+      "Correo Usuario",
+      "Usuario ID",
+      "Nombre Producto",
+      "Producto ID",
+    ];
+
+    const lineas = [encabezados.join(",")];
+
+    // Filas de datos
+    resenas.forEach((resena) => {
+      const fila = [
+        escapar(resena.idDoc),
+        resena.calificacion ?? "",
+        escapar(resena.comentario),
+        escapar(resena.correoUsuario),
+        escapar(resena.usuarioId),
+        escapar(resena.nombreProducto),
+        escapar(resena.productoId),
+      ];
+
+      lineas.push(fila.join(","));
+    });
+
+    const csvContent = lineas.join("\n");
+
+    const nombreArchivo = `resenas-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    // Headers para forzar la descarga
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${nombreArchivo}"`
+    );
+
+    // BOM UTF-8 para que Excel muestre bien los acentos
+    res.write("\uFEFF");
+    res.end(csvContent);
+  } catch (error) {
+    console.error("Error al exportar reseñas a CSV:", error);
+    res.status(500).json({
+      mensaje: "Error al generar el archivo CSV de reseñas.",
+      error: error.message,
+    });
+  }
+};

@@ -331,3 +331,71 @@ export const buscarProductos = async (req, res) => {
     });
   }
 };
+
+export const exportarProductosCSV = async (req, res) => {
+  try {
+    const snapshot = await db.collection("productos").get();
+
+    const productos = snapshot.docs.map((doc) => ({
+      idDoc: doc.id,
+      ...doc.data(),
+    }));
+
+    // Función para escapar correctamente valores CSV
+    const escapar = (valor) => {
+      if (valor === null || valor === undefined) return "";
+      const str = String(valor);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Encabezados del CSV
+    const encabezados = [
+      "ID Documento",
+      "Nombre",
+      "Precio",
+      "Stock",
+      "Categoría ID",
+      "URL Imagen",
+    ];
+
+    const lineas = [encabezados.join(",")];
+
+    // Filas de datos
+    productos.forEach((producto) => {
+      const fila = [
+        escapar(producto.idDoc),
+        escapar(producto.nombre),
+        producto.precio ?? "",
+        producto.stock ?? "",
+        producto.categoria_id ?? "",
+        escapar(producto.imagen),
+      ];
+
+      lineas.push(fila.join(","));
+    });
+
+    const csvContent = lineas.join("\n");
+
+    const nombreArchivo = `productos-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    // Headers para forzar la descarga
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${nombreArchivo}"`
+    );
+
+    // BOM UTF-8 para que Excel muestre bien los acentos
+    res.write("\uFEFF");
+    res.end(csvContent);
+  } catch (error) {
+    console.error("Error al exportar productos a CSV:", error);
+    res.status(500).json({
+      mensaje: "Error al generar el archivo CSV de productos.",
+      error: error.message,
+    });
+  }
+};

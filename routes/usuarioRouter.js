@@ -6,11 +6,14 @@ import {
   eliminarUsuario,
   buscarUsuarios,
   agregarProductoAlCarrito,
-  quitarProductoDelCarrito
+  quitarProductoDelCarrito,
+  exportarUsuariosCSV,
 } from '../controllers/usuarios.controller.js';
 
 const router = express.Router();
 
+
+router.get('/usuario/csv', exportarUsuariosCSV);
 router.get('/usuario', obtenerUsuarios);
 router.get('/buscarusuario', buscarUsuarios);
 router.post('/registrarusuario', registrarUsuario);

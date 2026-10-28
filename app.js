@@ -6,6 +6,7 @@ import usuarioRouter from "./routes/usuarioRouter.js";
 import pedidoRouter from "./routes/pedidoRouter.js";
 import resenaRouter from "./routes/resenaRouter.js";
 import estadisticasRoutes from "./routes/estadisticas.routes.js";
+import categoriaRoutes from "./routes/categoria.routes.js";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(usuarioRouter);
 app.use(pedidoRouter);
 app.use(resenaRouter);
 app.use(estadisticasRoutes);
+app.use(categoriaRoutes);
 
 
 // 404

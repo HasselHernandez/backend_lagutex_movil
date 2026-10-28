@@ -434,3 +434,85 @@ export const quitarProductoDelCarrito = async (req, res) => {
     });
   }
 };
+
+export const exportarUsuariosCSV = async (req, res) => {
+  try {
+    const snapshot = await db.collection("usuario").get();
+
+    const usuarios = snapshot.docs.map((doc) => ({
+      idDoc: doc.id,
+      ...doc.data(),
+    }));
+
+    // Función para escapar correctamente valores CSV
+    const escapar = (valor) => {
+      if (valor === null || valor === undefined) return "";
+      const str = typeof valor === "object" ? JSON.stringify(valor) : String(valor);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Encabezados del CSV
+    const encabezados = [
+      "ID Documento",
+      "Nombre",
+      "Correo",
+      "Rol",
+      "Carrito (Resumen)",
+      "Direcciones (Resumen)",
+    ];
+
+    const lineas = [encabezados.join(",")];
+
+    // Filas de datos
+    usuarios.forEach((usuario) => {
+      // Formatear carrito en un texto legible
+      const carritoObj = usuario.carrito || {};
+      const carritoArray = Array.isArray(carritoObj) ? carritoObj : Object.values(carritoObj);
+      const carritoTexto = carritoArray
+        .map((item) => `${item.cantidad}x ${item.nombre || "Producto"} ($${item.precio || 0})`)
+        .join(" | ");
+
+      // Formatear direcciones en un texto legible
+      const direccionesObj = usuario.direcciones || {};
+      const direccionesArray = Array.isArray(direccionesObj) ? direccionesObj : Object.values(direccionesObj);
+      const direccionesTexto = direccionesArray
+        .map((dir) => `Municipio: ${dir.Municipio || ""}, Departamento: ${dir.departamento || ""}, Barrio: ${dir.barrio || ""}, Dir: ${dir.direccion || ""}`)
+        .join(" || ");
+
+      const fila = [
+        escapar(usuario.idDoc),
+        escapar(usuario.nombre),
+        escapar(usuario.correo),
+        escapar(usuario.rol),
+        escapar(carritoTexto),
+        escapar(direccionesTexto),
+      ];
+
+      lineas.push(fila.join(","));
+    });
+
+    const csvContent = lineas.join("\n");
+
+    const nombreArchivo = `usuarios-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    // Headers para forzar la descarga
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${nombreArchivo}"`
+    );
+
+    // BOM UTF-8 para que Excel muestre bien los acentos
+    res.write("\uFEFF");
+    res.end(csvContent);
+  } catch (error) {
+    console.error("Error al exportar usuarios a CSV:", error);
+    res.status(500).json({
+      mensaje: "Error al generar el archivo CSV de usuarios.",
+      error: error.message,
+    });
+  }
+};

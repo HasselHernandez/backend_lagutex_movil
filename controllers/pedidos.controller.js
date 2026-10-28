@@ -419,3 +419,103 @@ export const buscarPedidos = async (req, res) => {
     });
   }
 };
+
+  export const exportarPedidosCSV = async (req, res) => {
+    try {
+      const snapshot = await db.collection("pedidos").orderBy("fecha", "desc").get();
+
+      const pedidos = snapshot.docs.map((doc) => ({
+        idDoc: doc.id,
+        ...doc.data(),
+      }));
+
+      // Función para escapar correctamente valores CSV
+      const escapar = (valor) => {
+        if (valor === null || valor === undefined) return "";
+        const str = typeof valor === "object" ? JSON.stringify(valor) : String(valor);
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      // Encabezados del CSV basados en la estructura de pedidos
+      const encabezados = [
+        "ID Documento",
+        "Usuario ID",
+        "Correo Usuario",
+        "Estado",
+        "Confirmación Cliente",
+        "Subtotal",
+        "Costo Envío",
+        "Total",
+        "Dirección",
+        "Mensaje Admin",
+        "Productos (Resumen)",
+        "Fecha de Pedido",
+      ];
+
+      const lineas = [encabezados.join(",")];
+
+      // Filas de datos
+      pedidos.forEach((pedido) => {
+        // Formatear la fecha de Firestore (puede ser Timestamp o string)
+        let fechaFormateada = "";
+        if (pedido.fecha) {
+          const fechaObj = pedido.fecha.toDate ? pedido.fecha.toDate() : new Date(pedido.fecha);
+          fechaFormateada = !isNaN(fechaObj) ? fechaObj.toLocaleString("es-ES") : String(pedido.fecha);
+        }
+
+        // Formatear dirección en un texto legible
+        const dir = pedido.direccion || {};
+        const direccionTexto = `Municipio: ${dir.municipio || ""}, Departamento: ${dir.department || dir.departamento || ""}, Barrio: ${dir.barrio || ""}, Detalle: ${dir.detalle || ""}`;
+
+        // Formatear productos en un resumen legible
+        const productosArray = pedido.productos 
+          ? (Array.isArray(pedido.productos) ? pedido.productos : Object.values(pedido.productos))
+          : [];
+        
+        const productosTexto = productosArray
+          .map((p) => `${p.cantidad}x ${p.nombre} ($${p.precio})`)
+          .join(" | ");
+
+        const fila = [
+          escapar(pedido.idDoc),
+          escapar(pedido.usuarioId),
+          escapar(pedido.correoUsuario),
+          escapar(pedido.estado),
+          escapar(pedido.confirmacionCliente),
+          pedido.subtotal ?? "",
+          pedido.costoEnvio ?? "",
+          pedido.total ?? "",
+          escapar(direccionTexto),
+          escapar(pedido.mensajeAdmin),
+          escapar(productosTexto),
+          escapar(fechaFormateada),
+        ];
+
+        lineas.push(fila.join(","));
+      });
+
+      const csvContent = lineas.join("\n");
+
+      const nombreArchivo = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+
+      // Headers para forzar la descarga
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${nombreArchivo}"`
+      );
+
+      // BOM UTF-8 para que Excel muestre bien los acentos
+      res.write("\uFEFF");
+      res.end(csvContent);
+    } catch (error) {
+      console.error("Error al exportar pedidos a CSV:", error);
+      res.status(500).json({
+        mensaje: "Error al generar el archivo CSV de pedidos.",
+        error: error.message,
+      });
+    }
+  };

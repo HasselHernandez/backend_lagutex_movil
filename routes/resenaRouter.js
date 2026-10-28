@@ -5,14 +5,23 @@ import {
   registrarResena,
   actualizarResena,
   eliminarResena,
-  buscarResenas
+  buscarResenas,
+  exportarResenasCSV,
 } from '../controllers/resenas.controller.js';
 
 const router = express.Router();
 
+
+
+router.get('/resena/csv', exportarResenasCSV);
 router.get('/resena', obtenerResenas);
 router.get('/buscarresena', buscarResenas);
+
+
+
 router.post('/registrarresena', registrarResena);
+
+
 router.get('/resena/:id', obtenerResena);
 router.put('/resena/:id', actualizarResena);
 router.patch('/resena/:id', actualizarResena);
