@@ -29,7 +29,6 @@ export const obtenerProductos = async (req, res) => {
   }
 };
 
-
 export const registrarProducto = async (req, res) => {
   const { nombre, precio, stock } = req.body;
   const categoriaId = typeof req.body.categoria_id === 'string'
@@ -110,7 +109,7 @@ export const registrarProducto = async (req, res) => {
       image: imageUrl,
       stock: stockNumerico,
       categoria_id: categoriaId
-    };
+    }; 
 
     await productoRef.set(nuevoProducto);
 
@@ -129,7 +128,6 @@ export const registrarProducto = async (req, res) => {
     });
   }
 };
-
 
 export const actualizarProducto = async (req, res) => {
   try {
@@ -230,7 +228,6 @@ export const actualizarProducto = async (req, res) => {
     });
   }
 };
-
 
 export const eliminarProducto = async (req, res) => {
   try {
@@ -399,3 +396,4 @@ export const exportarProductosCSV = async (req, res) => {
     });
   }
 };
+

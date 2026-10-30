@@ -11,4 +11,5 @@ router.get('/estadisticas', obtenerEstadisticas);
 router.get('/estadisticas/exportar/excel', exportarEstadisticasExcel);
 router.get('/estadisticas/exportar/pdf', exportarEstadisticasPDF);
 
+
 export default router;

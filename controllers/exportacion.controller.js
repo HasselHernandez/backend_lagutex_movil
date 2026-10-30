@@ -42,9 +42,16 @@ const agregarFilasResumen = (hoja, estadisticas) => {
 
 export const exportarEstadisticasExcel = async (req, res) => {
   try {
-    const [estadisticas, productosSnapshot] = await Promise.all([
+    const [
+      estadisticas,
+      productosSnapshot,
+      categoriasSnapshot,
+      usuariosSnapshot
+    ] = await Promise.all([
       calcularEstadisticas(),
-      db.collection('productos').get()
+      db.collection('productos').get(),
+      db.collection('categorias').get(),
+      db.collection('usuario').get()
     ]);
 
     const workbook = new ExcelJS.Workbook();
@@ -99,33 +106,111 @@ export const exportarEstadisticasExcel = async (req, res) => {
 
     const porCategoria = workbook.addWorksheet('Productos por categoría');
     porCategoria.columns = [
-      { header: 'Categoría ID', key: 'categoria', width: 32 },
+      { header: 'Categoría', key: 'categoria', width: 32 },
+      { header: 'Producto', key: 'producto', width: 36 },
       { header: 'Cantidad de productos', key: 'cantidad', width: 24 }
     ];
-    Object.entries(estadisticas.productos.porCategoria)
-      .sort((a, b) => b[1] - a[1])
-      .forEach(([categoria, cantidad]) => porCategoria.addRow({ categoria, cantidad }));
+
+    const gruposPorCategoria = new Map();
+    const categoriaPorId = new Map();
+    categoriasSnapshot.docs.forEach((doc) => {
+      const datos = doc.data();
+      const grupo = {
+        nombre: datos.nombre_categoria || 'Categoría sin nombre',
+        productos: []
+      };
+      gruposPorCategoria.set(doc.id, grupo);
+      categoriaPorId.set(String(doc.id).trim(), doc.id);
+      if (datos.id !== undefined && datos.id !== null) {
+        categoriaPorId.set(String(datos.id), doc.id);
+      }
+    });
+
+    productosSnapshot.docs.forEach((doc) => {
+      const datos = doc.data();
+      const categoriaId = typeof datos.categoria_id === 'string' ||
+        typeof datos.categoria_id === 'number'
+        ? String(datos.categoria_id).trim()
+        : '';
+      const categoriaKey = categoriaId
+        ? categoriaPorId.get(categoriaId) || categoriaId
+        : 'Sin categoría';
+
+      if (!gruposPorCategoria.has(categoriaKey)) {
+        gruposPorCategoria.set(categoriaKey, {
+          nombre: categoriaId
+            ? `Categoría no encontrada (${categoriaId})`
+            : 'Sin categoría',
+          productos: []
+        });
+      }
+      gruposPorCategoria.get(categoriaKey).productos.push(datos.nombre || '');
+    });
+
+    [...gruposPorCategoria.values()]
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      .forEach((grupo) => {
+        const productosDeCategoria = grupo.productos.length
+          ? grupo.productos
+          : [''];
+        productosDeCategoria.forEach((producto) => {
+          porCategoria.addRow({
+            categoria: grupo.nombre,
+            producto,
+            cantidad: grupo.productos.length
+          });
+        });
+      });
     porCategoria.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     porCategoria.getRow(1).fill = {
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FF70AD47' }
     };
+    porCategoria.views = [{ state: 'frozen', ySplit: 1 }];
+    porCategoria.autoFilter = 'A1:C1';
 
     const porRol = workbook.addWorksheet('Usuarios por rol');
     porRol.columns = [
       { header: 'Rol', key: 'rol', width: 24 },
+      { header: 'Nombre del usuario', key: 'usuario', width: 36 },
       { header: 'Cantidad de usuarios', key: 'cantidad', width: 24 }
     ];
-    Object.entries(estadisticas.usuarios.porRol)
-      .sort((a, b) => b[1] - a[1])
-      .forEach(([rol, cantidad]) => porRol.addRow({ rol, cantidad }));
+    const usuariosPorRol = new Map();
+    usuariosSnapshot.docs.forEach((doc) => {
+      const datos = doc.data();
+      const rol = typeof datos.rol === 'string' && datos.rol.trim()
+        ? datos.rol.trim()
+        : 'Sin rol';
+      const nombre = [datos.nombres, datos.apellidos]
+        .filter((parte) => typeof parte === 'string' && parte.trim())
+        .join(' ')
+        .trim() || 'Sin nombre registrado';
+
+      if (!usuariosPorRol.has(rol)) {
+        usuariosPorRol.set(rol, []);
+      }
+      usuariosPorRol.get(rol).push(nombre);
+    });
+    [...usuariosPorRol.entries()]
+      .sort((a, b) => b[1].length - a[1].length)
+      .forEach(([rol, nombres]) => {
+        nombres.forEach((usuario) => {
+          porRol.addRow({
+            rol,
+            usuario,
+            cantidad: nombres.length
+          });
+        });
+      });
     porRol.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     porRol.getRow(1).fill = {
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FF70AD47' }
     };
+    porRol.views = [{ state: 'frozen', ySplit: 1 }];
+    porRol.autoFilter = 'A1:C1';
 
     configurarDescarga(
       res,
